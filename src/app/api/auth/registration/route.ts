@@ -1,3 +1,4 @@
+import { TOKEN_TYPE } from '@/data/constants/role.constant';
 import { BcryptHelper } from '@/helpers/bcrypt.helper';
 import { DBHelpers } from '@/helpers/db.helper';
 import { JWTHelper } from '@/helpers/jwt.helper';
@@ -32,12 +33,14 @@ export async function POST(req: Request) {
         const tokenPayload = {
             user: {
                 id: user.id,
+                type: TOKEN_TYPE.OWNER
             },
         };
 
         const refreshTokenPayload = {
             user: {
                 id: user.id,
+                type: TOKEN_TYPE.OWNER
             },
             isRefreshToken: true,
         };

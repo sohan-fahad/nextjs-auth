@@ -11,22 +11,159 @@ datasource db {
 }
 
 model User {
-  id        Int       @id @default(autoincrement())
-  email     String    @unique
-  password  String
-  name      String?
-  createdAt DateTime? @default(now())
-  updatedAt DateTime? @updatedAt
-  posts     Post[]
+  id         Int               @id @default(autoincrement())
+  email      String            @unique
+  password   String
+  name       String?
+  createdAt  DateTime?         @default(now())
+  updatedAt  DateTime?         @updatedAt
+  orders     Order[]
+  products   Product[]
+  tables     RestaurantTable[]
+  categories Category[]
 }
 
-model Post {
-  id        Int      @id @default(autoincrement())
+model RestaurantTable {
+  id           String  @id @default(uuid())
+  title        String
+  isBusy       Boolean @default(false)
+  isActive     Boolean @default(true)
+  orders       Order[]
+  user         User?   @relation(fields: [restaurantId], references: [id])
+  restaurantId Int?
+}
+
+model Product {
+  id             String           @id @default(uuid())
+  title          String
+  slug           String           @unique
+  isActive       Boolean          @default(true)
+  description    String?
+  mrp            Float            @default(0)
+  stock          Int              @default(0)
+  remainingStock Int              @default(0)
+  isStockout     Boolean          @default(false)
+  thum           String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  Category       Category?        @relation(fields: [categoryId], references: [id])
+  categoryId     String
+  variants       ProductVariant[]
+  user           User?            @relation(fields: [restaurantId], references: [id])
+  restaurantId   Int
+}
+
+model Category {
+  id        String    @id @default(uuid())
   title     String
-  content   String
-  published Boolean  @default(true)
-  author    User     @relation(fields: [authorId], references: [id])
-  authorId  Int
+  slug      String    @unique
+  isActive  Boolean   @default(true)
+  image     String?
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User?     @relation(fields: [userId], references: [id])
+  userId    Int?
+}
+
+model ProductVariant {
+  id             String    @id @default(uuid())
+  mrp            Float     @default(0)
+  stock          Int       @default(0)
+  remainingStock Int       @default(0)
+  isStockout     Boolean   @default(false)
+  Product        Product?  @relation(fields: [productId], references: [id])
+  productId      String?
+  variants       Variant[]
+}
+
+model Variant {
+  id               String             @id @default(uuid())
+  title            String
+  slug             String             @unique
+  isActive         Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  variantOptions   VariantOption[]
+  ProductVariant   ProductVariant?    @relation(fields: [productVariantId], references: [id])
+  productVariantId String?
+  OrderItemVariant OrderItemVariant[]
+}
+
+model VariantOption {
+  id        String   @id @default(uuid())
+  title     String
+  slug      String   @unique
+  isActive  Boolean  @default(true)
+  Variant   Variant? @relation(fields: [variantId], references: [id])
+  variantId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Order {
+  id                String                    @id @default(uuid())
+  isActive          Boolean                   @default(true)
+  subTotal          Float                     @default(0)
+  total             Float                     @default(0)
+  dueAmount         Float                     @default(0)
+  paidAmount        Float                     @default(0)
+  discount          Float                     @default(0)
+  vat               Float                     @default(0)
+  orderStatus       ENUM_ORDER_STATUS         @default(PENDING)
+  paymentStatus     ENUM_ORDER_PAYMENT_STATUS @default(PENDING)
+  paymentMethod     ENUM_PAYMENT_TYPE         @default(CASH)
+  user              User                      @relation(fields: [restaurantId], references: [id])
+  restaurantId      Int
+  customerInfo      Json?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  RestaurantTable   RestaurantTable?          @relation(fields: [restaurantTableId], references: [id])
+  restaurantTableId String?
+}
+
+model OrderItem {
+  id            String             @id @default(uuid())
+  isActive      Boolean            @default(true)
+  quantity      Int                @default(0)
+  mrp           Float              @default(0)
+  orderVariants OrderItemVariant[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+}
+
+model OrderItemVariant {
+  id          String     @id @default(uuid())
+  OrderItem   OrderItem? @relation(fields: [orderItemId], references: [id])
+  orderItemId String?
+  variant     Variant    @relation(fields: [variantId], references: [id])
+  variantId   String
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ENUM_ORDER_STATUS {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  OUT_FOR_DELIVERY
+  CANCELLED
+  DELIVERED
+  RETURNED
+  REFUNDED
+}
+
+enum ENUM_ORDER_PAYMENT_STATUS {
+  PENDING
+  PAID
+  DELIVERY_CHARGE_PAID
+  FAILED
+}
+
+enum ENUM_PAYMENT_TYPE {
+  CASH
+  GAZEPAY
 }
