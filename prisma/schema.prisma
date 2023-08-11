@@ -10,7 +10,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
+model Restaurant {
   id         Int               @id @default(autoincrement())
   email      String            @unique
   password   String
@@ -21,84 +21,88 @@ model User {
   products   Product[]
   tables     RestaurantTable[]
   categories Category[]
+  images     Image[]
 }
 
 model RestaurantTable {
-  id           String  @id @default(uuid())
-  title        String
-  isBusy       Boolean @default(false)
-  isActive     Boolean @default(true)
-  orders       Order[]
-  user         User?   @relation(fields: [restaurantId], references: [id])
-  restaurantId Int?
+  id             String      @id @default(uuid())
+  title          String
+  isBusy         Boolean     @default(false)
+  isActive       Boolean     @default(false)
+  orders         Order[]
+  restaurantInfo Restaurant? @relation(fields: [restaurantId], references: [id])
+  restaurantId   Int?
 }
 
 model Product {
-  id             String           @id @default(uuid())
+  id             String                 @id @default(uuid())
   title          String
-  slug           String           @unique
-  isActive       Boolean          @default(true)
+  slug           String                 @unique
+  isActive       Boolean                @default(true)
   description    String?
-  mrp            Float            @default(0)
-  stock          Int              @default(0)
-  remainingStock Int              @default(0)
-  isStockout     Boolean          @default(false)
-  thum           String?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  Category       Category?        @relation(fields: [categoryId], references: [id])
+  mrp            Float                  @default(0)
+  stock          Int                    @default(0)
+  remainingStock Int                    @default(0)
+  isStockout     Boolean                @default(false)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  Category       Category?              @relation(fields: [categoryId], references: [id])
   categoryId     String
-  variants       ProductVariant[]
-  user           User?            @relation(fields: [restaurantId], references: [id])
+  variants       ProductVariantOption[]
+  restaurantInfo Restaurant?            @relation(fields: [restaurantId], references: [id])
   restaurantId   Int
+  image          Image?                 @relation(fields: [imageId], references: [id])
+  imageId        String?
 }
 
 model Category {
-  id        String    @id @default(uuid())
-  title     String
-  slug      String    @unique
-  isActive  Boolean   @default(true)
-  image     String?
-  products  Product[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  user      User?     @relation(fields: [userId], references: [id])
-  userId    Int?
+  id             String      @id @default(uuid())
+  title          String
+  slug           String      @unique
+  isActive       Boolean     @default(true)
+  image          String?
+  products       Product[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  restaurantInfo Restaurant? @relation(fields: [restaurantId], references: [id])
+  restaurantId   Int?
 }
 
-model ProductVariant {
-  id             String    @id @default(uuid())
-  mrp            Float     @default(0)
-  stock          Int       @default(0)
-  remainingStock Int       @default(0)
-  isStockout     Boolean   @default(false)
-  Product        Product?  @relation(fields: [productId], references: [id])
-  productId      String?
-  variants       Variant[]
+model ProductVariantOption {
+  id              String        @id @default(uuid())
+  mrp             Float         @default(0)
+  stock           Int           @default(0)
+  remainingStock  Int           @default(0)
+  isStockout      Boolean       @default(false)
+  Product         Product?      @relation(fields: [productId], references: [id])
+  productId       String?
+  variant         Variant       @relation(fields: [variantId], references: [id])
+  variantOptions  VariantOption @relation(fields: [variantOptionId], references: [id])
+  variantOptionId String
+  variantId       String
 }
 
 model Variant {
-  id               String             @id @default(uuid())
-  title            String
-  slug             String             @unique
-  isActive         Boolean            @default(true)
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  variantOptions   VariantOption[]
-  ProductVariant   ProductVariant?    @relation(fields: [productVariantId], references: [id])
-  productVariantId String?
-  OrderItemVariant OrderItemVariant[]
+  id                   String                 @id @default(uuid())
+  title                String
+  slug                 String                 @unique
+  isActive             Boolean                @default(true)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  variantOptions       VariantOption[]
+  OrderItemVariant     OrderItemVariant[]
+  productVariantOption ProductVariantOption[]
 }
 
 model VariantOption {
-  id        String   @id @default(uuid())
-  title     String
-  slug      String   @unique
-  isActive  Boolean  @default(true)
-  Variant   Variant? @relation(fields: [variantId], references: [id])
-  variantId String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   String                 @id @default(uuid())
+  title                String
+  isActive             Boolean                @default(true)
+  variant              Variant?               @relation(fields: [variantId], references: [id])
+  variantId            String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  productVariantOption ProductVariantOption[]
 }
 
 model Order {
@@ -113,12 +117,12 @@ model Order {
   orderStatus       ENUM_ORDER_STATUS         @default(PENDING)
   paymentStatus     ENUM_ORDER_PAYMENT_STATUS @default(PENDING)
   paymentMethod     ENUM_PAYMENT_TYPE         @default(CASH)
-  user              User                      @relation(fields: [restaurantId], references: [id])
+  restaurantInfo    Restaurant                @relation(fields: [restaurantId], references: [id])
   restaurantId      Int
   customerInfo      Json?
   createdAt         DateTime                  @default(now())
   updatedAt         DateTime                  @updatedAt
-  RestaurantTable   RestaurantTable?          @relation(fields: [restaurantTableId], references: [id])
+  restaurantTable   RestaurantTable?          @relation(fields: [restaurantTableId], references: [id])
   restaurantTableId String?
 }
 
@@ -138,6 +142,15 @@ model OrderItemVariant {
   orderItemId String?
   variant     Variant    @relation(fields: [variantId], references: [id])
   variantId   String
+}
+
+model Image {
+  id             String      @id @default(uuid())
+  url            String
+  deleteUrl      String
+  product        Product[]
+  restaurantInfo Restaurant? @relation(fields: [restaurantId], references: [id])
+  restaurantId   Int?
 }
 
 enum Role {

@@ -15,7 +15,7 @@ export function checkBearerToken() {
         const token = JWTHelper.extractToken(authorization);
         const verifyUser = JWTHelper.verify(token)
         const isJwtExpired = JWTHelper.isJwtExpired(verifyUser?.exp)
-        if (!verifyUser || isJwtExpired || verifyUser.user.type == TOKEN_TYPE.OWNER) return false
+        if (!verifyUser || isJwtExpired || verifyUser.user?.type == TOKEN_TYPE.OWNER) return false
     }
 
     return true;

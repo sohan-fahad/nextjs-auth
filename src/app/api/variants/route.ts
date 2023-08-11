@@ -1,48 +1,46 @@
 import { checkBearerToken } from "@/helpers/check-bearer-token.helper";
-import { decodedHeaderToken } from "@/helpers/decoded-header-token.helper";
+import { NextResponse } from "next/server";
 import { prisma } from '@/lib/prisma';
 import { generateSlug } from "@/utils/slug.utils";
 import { Prisma } from "@prisma/client";
-import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
 
     try {
         if (!checkBearerToken()) {
-            return NextResponse.json({ message: 'Unauthorized', success: false, statusCode: 401 }, { status: 401 });
+            return NextResponse.json({ message: 'Unauthorized request', success: false, statusCode: 401 }, { status: 401 });
         }
 
-        const { title } = await req.json();
-        if (!title) {
-            return NextResponse.json({ message: 'invalid title', success: false, statusCode: 400 }, { status: 400 });
-        }
-        const decodedToken = await decodedHeaderToken()
+        const { title } = await req.json()
+
+        const variantExist = await prisma.variant.findFirst({
+            where: { title }
+        });
+        if (variantExist?.id) return NextResponse.json({ message: "Variant already exist!", success: false }, { status: 400 })
+
         const requestPayload = {
             title,
-            restaurantId: decodedToken?.restaurant?.id,
             slug: generateSlug(title)
         }
 
-
-
-        const addedCategory = await prisma.category.create({
+        const addedVariant = await prisma.variant.create({
             data: requestPayload
         })
 
         return NextResponse.json({
-            message: "category created successfully",
+            message: "variant created successfully",
             success: true,
-            payload: addedCategory,
+            payload: addedVariant,
             statusCode: 201
         }, { status: 201 })
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 400 })
-    }
 
+    } catch (error: any) {
+        return NextResponse.json({ message: error.message, success: false }, { status: 400 })
+    }
 }
 
-export async function GET(req: Request) {
 
+export async function GET(req: Request) {
     try {
         if (!checkBearerToken()) {
             return NextResponse.json({ message: 'Unauthorized request', success: false, statusCode: 401 }, { status: 401 });
@@ -60,23 +58,25 @@ export async function GET(req: Request) {
             skip = (page - 1) * limit
         }
 
-        const query: Prisma.CategoryFindManyArgs = {
-            take: limit > 0 ? limit : 10,
-            skip: skip
-        }
 
-        const [categories, count] = await prisma.$transaction([
-            prisma.category.findMany(query),
-            prisma.category.count()
+        const [variants, count] = await prisma.$transaction([
+            prisma.variant.findMany({
+                skip,
+                take: limit > 0 ? limit : 10,
+                include: {
+                    variantOptions: true
+                }
+            }),
+            prisma.variant.count()
         ])
         return NextResponse.json({
             message: "successfully",
             success: true,
-            payload: categories,
+            payload: variants,
             statusCode: 200,
             count
         }, { status: 200 })
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 400 })
+        return NextResponse.json({ message: error.message }, { status: 400 })
     }
 }

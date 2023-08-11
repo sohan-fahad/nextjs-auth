@@ -9,7 +9,7 @@ import { NextResponse } from "next/server";
 export async function POST(req: Request) {
     const { email, password, name } = await req.json();
 
-    const exists = await prisma.user.findUnique({
+    const exists = await prisma.restaurant.findUnique({
         where: {
             email,
         },
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     } else {
 
         const hashedPassword = await BcryptHelper.hash(password)
-        const user = await prisma.user.create({
+        const user = await prisma.restaurant.create({
             data: {
                 email,
                 password: hashedPassword,
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
         const userWithoutPassword = DBHelpers.exclude(user, ['password'])
         const payload = { user: userWithoutPassword, tokens: { accessToken, refreshToken } }
         return NextResponse.json({
-            message: "User created successfully",
+            message: "account created successfully",
             success: true,
             payload
         }, { status: 201 })

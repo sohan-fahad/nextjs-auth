@@ -1,3 +1,4 @@
+import { TOKEN_TYPE } from '@/data/constants/role.constant';
 import { BcryptHelper } from '@/helpers/bcrypt.helper';
 import { DBHelpers } from '@/helpers/db.helper';
 import { JWTHelper } from '@/helpers/jwt.helper';
@@ -9,7 +10,7 @@ export async function POST(req: Request) {
     try {
         const { email, password } = await req.json();
 
-        const existUser = await prisma.user.findUnique({
+        const existUser = await prisma.restaurant.findUnique({
             where: {
                 email,
             },
@@ -24,14 +25,16 @@ export async function POST(req: Request) {
                 return NextResponse.json({ error: "Invalid password" }, { status: 400 });
             } else {
                 const tokenPayload = {
-                    user: {
+                    restaurant: {
                         id: existUser.id,
+                        type: TOKEN_TYPE.OWNER
                     },
                 };
 
                 const refreshTokenPayload = {
-                    user: {
+                    restaurant: {
                         id: existUser.id,
+                        type: TOKEN_TYPE.OWNER
                     },
                     isRefreshToken: true,
                 };
