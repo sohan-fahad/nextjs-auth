@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from "@prisma/client";
 import { decodedHeaderToken } from "@/helpers/decoded-header-token.helper";
 import { sendEvent } from "@/lib/events";
-import { EmitEvents } from "@/data/constants/emit-event.constants";
+import { SSE_EVENTS } from "@/data/constants/sse-event.constants";
 import { TOKEN_TYPE } from "@/data/constants/role.constant";
 import { JWTHelper } from "@/helpers/jwt.helper";
 
@@ -16,34 +16,37 @@ export async function PUT(req: Request) {
             return NextResponse.json({ message: 'Unauthorized request', success: false, statusCode: 401 }, { status: 401 });
         }
 
-        const { isActive, isBusy, tableId } = await req.json()
+        const { isActive, tableId } = await req.json()
 
         if (!tableId) return NextResponse.json({ message: 'table id required', success: false, statusCode: 400 }, { status: 400 });
 
-        if (typeof isActive != "boolean" || typeof isBusy != "boolean") return NextResponse.json({ message: 'Invalid data type', success: false, statusCode: 400 }, { status: 400 });
+        if (typeof isActive != "boolean") return NextResponse.json({ message: 'Invalid data type', success: false, statusCode: 400 }, { status: 400 });
 
-        const existTable = await prisma.restaurantTable.findUnique({ where: { id: tableId, restaurantId: decodedHeaderToken()?.restaurant?.id } })
+        const existTable: any = await prisma.restaurantTable.findUnique({ where: { id: tableId, restaurantId: decodedHeaderToken()?.restaurant?.id } })
 
         if (!existTable) return NextResponse.json({ message: 'No table found', success: false, statusCode: 400 }, { status: 400 });
 
         const query: Prisma.RestaurantTableUpdateArgs = {
             where: { id: tableId, restaurantId: decodedHeaderToken()?.restaurant?.id },
-            data: { isActive, isBusy }
+            data: { isActive }
         }
 
-        const updated = await prisma.restaurantTable.update(query)
 
-        if (updated.isActive || !updated.isActive) {
+
+        const updated = await prisma.restaurantTable.update(query)
+        if (updated.isActive) {
             const tokenPayload = {
                 restaurant: {
-                    id: updated.id,
+                    id: updated.restaurantId,
+                    tableId: updated.id,
                     type: TOKEN_TYPE.TABLE
                 },
             };
 
             const refreshTokenPayload = {
                 restaurant: {
-                    id: updated.id,
+                    id: updated.restaurantId,
+                    tableId: updated.id,
                     type: TOKEN_TYPE.TABLE
                 },
                 isRefreshToken: true,
@@ -51,11 +54,21 @@ export async function PUT(req: Request) {
 
             const accessToken = JWTHelper.makeAccessToken(tokenPayload);
             const refreshToken = JWTHelper.makeRefreshToken(refreshTokenPayload);
-            await sendEvent({
-                type: EmitEvents.CHANGE_TABLE_STATUS,
+            sendEvent({
+                type: SSE_EVENTS.TABLE_ACTIVE,
                 payload: {
                     accessToken,
-                    refreshToken
+                    refreshToken,
+                    tableId: updated?.id,
+                    isActive: updated.isActive
+                }
+            })
+        } else {
+            sendEvent({
+                type: SSE_EVENTS.TABLE_INACTIVE,
+                payload: {
+                    tableId: updated?.id,
+                    isActive: updated.isActive
                 }
             })
         }

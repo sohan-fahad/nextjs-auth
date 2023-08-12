@@ -7,11 +7,18 @@ export interface ISseEventPayload {
 }
 
 
-export const emitter = new EventEmitter();
+export const responseStream = new TransformStream();
+const encoder = new TextEncoder();
+const writer = responseStream.writable.getWriter()
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function sendEvent(data: ISseEventPayload) {
-    emitter.emit('sse-event', { ...data });
-}
+    try {
+        const sss = await writer.write(encoder.encode(`data: ${JSON.stringify(data)} \n\n`));
+        console.log(sss, data);
 
-export let responseStream = new TransformStream();
-export const writer = responseStream.writable.getWriter();
+    } catch (error) {
+        console.error('Could not JSON stringify stream message', onmessage, error);
+    }
+}

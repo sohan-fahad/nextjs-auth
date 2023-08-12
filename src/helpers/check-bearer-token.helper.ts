@@ -15,7 +15,25 @@ export function checkBearerToken() {
         const token = JWTHelper.extractToken(authorization);
         const verifyUser = JWTHelper.verify(token)
         const isJwtExpired = JWTHelper.isJwtExpired(verifyUser?.exp)
-        if (!verifyUser || isJwtExpired || verifyUser.user?.type == TOKEN_TYPE.OWNER) return false
+        if (!verifyUser || isJwtExpired || verifyUser.restaurant?.type != TOKEN_TYPE.OWNER) return false
+    }
+
+    return true;
+}
+
+export function checkBearerTokenForOrder() {
+
+    const headersInstance = headers()
+    const authorization = headersInstance.get('authorization')
+    if (!authorization || !authorization.startsWith('Bearer ')) {
+        return false;
+    }
+
+    if (authorization) {
+        const token = JWTHelper.extractToken(authorization);
+        const verifyUser = JWTHelper.verify(token)
+        const isJwtExpired = JWTHelper.isJwtExpired(verifyUser?.exp)
+        if (!verifyUser || isJwtExpired || verifyUser.restaurant?.type != TOKEN_TYPE.TABLE) return false
     }
 
     return true;

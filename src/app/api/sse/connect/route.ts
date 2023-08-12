@@ -1,25 +1,14 @@
-import { emitter } from '@/lib/events';
-import { NextResponse } from 'next/server';
-import { fromEvent } from 'rxjs';
-import { map } from 'rxjs/operators'
+import { SSE_EVENTS } from "@/data/constants/sse-event.constants";
+import { ISseEventPayload, responseStream, sendEvent } from "@/lib/events";
 
-export async function GET() {
-    try {
-        const sseObservable = fromEvent(emitter, 'sse-event').pipe(
-            map(eventData => JSON.stringify(eventData))
-        );
+export async function GET(request: Request) {
+    sendEvent({ type: SSE_EVENTS.CONNECTION_STABLISHED, payload: {} })
 
-        sseObservable.subscribe(data => {
-            return new Response(data);
-        }, error => {
-            console.log(error);
-
-        })
-        return sseObservable
-    } catch (error) {
-        console.log(error);
-
-        NextResponse.json({ message: JSON.stringify(error) }, { status: 400 })
-    }
-
+    return new Response(responseStream.readable, {
+        headers: {
+            'Content-Type': 'text/event-stream',
+            Connection: 'keep-alive',
+            'Cache-Control': 'no-cache, no-transform',
+        },
+    });
 }

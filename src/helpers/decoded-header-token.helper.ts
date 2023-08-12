@@ -8,3 +8,11 @@ export const decodedHeaderToken = () => {
 
     return JWTHelper.verify(token)
 }
+
+export const decodedOrderHeaderToken = () => {
+    const headersInstance = headers()
+    const authorization: any = headersInstance.get('authorization');
+    const token = JWTHelper.extractToken(authorization);
+
+    return JWTHelper.verify(token)
+}
