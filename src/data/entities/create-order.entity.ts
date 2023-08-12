@@ -1,5 +1,6 @@
 export interface ICreateOrder {
-    product: string;
-    variantOptions?: string[];
+    productId: string;
+    variantOptions?: any[];
     quantity: number;
+    mrp: number
 }

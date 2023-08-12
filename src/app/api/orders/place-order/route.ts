@@ -2,6 +2,14 @@ import { ICreateOrder } from "@/data/entities/create-order.entity";
 import { checkBearerTokenForOrder } from "@/helpers/check-bearer-token.helper";
 import { NextResponse } from "next/server";
 import { ICartSummery } from '../../../../data/entities/cart-summary.entities';
+import { asyncForEach } from "@/utils/asyncForEach.utils";
+import { prisma } from '@/lib/prisma';
+import { OrderHelperService } from "@/services/helper-services/order.helper.service";
+import { decodedOrderHeaderToken } from "@/helpers/decoded-header-token.helper";
+import { ENUM_ORDER_PAYMENT_METHOD, ENUM_ORDER_PAYMENT_STATUS, ENUM_ORDER_STATUS } from "@/data/constants/order.constant";
+import { Prisma } from "@prisma/client";
+import { sendEvent } from "@/lib/events";
+import { SSE_EVENTS } from "@/data/constants/sse-event.constants";
 
 export async function POST(req: Request) {
     try {
@@ -9,12 +17,54 @@ export async function POST(req: Request) {
             return NextResponse.json({ message: 'Unauthorized request!', success: false, statusCode: 401 }, { status: 401 });
         }
 
-        const { products, tableId } = await req.json()
+        const { products } = await req.json();
+        const decodedToken = decodedOrderHeaderToken();
 
         if (!products.length) return NextResponse.json({ message: 'Invalid product data!', success: false, statusCode: 400 }, { status: 400 });
 
+        let orderProducts: any = await validateOrderProducts(products);
+        const { subTotal, vat, total } = await OrderHelperService.calculateOrderAmount(orderProducts)
+
+
+        return await prisma.$transaction(async (tx) => {
+            const addedOrder = await tx.order.create({
+                data: {
+                    paymentStatus: ENUM_ORDER_PAYMENT_STATUS.PENDING,
+                    orderStatus: ENUM_ORDER_STATUS.PENDING,
+                    paymentMethod: ENUM_ORDER_PAYMENT_METHOD.CASH,
+                    restaurantId: decodedToken?.restaurant?.id,
+                    restaurantTableId: decodedToken?.restaurant?.tableId,
+                    subTotal,
+                    vat,
+                    total,
+                    dueAmount: total,
+                }
+            })
+
+            await asyncForEach(orderProducts, async (_product: ICreateOrder) => {
+                let _options: any[] = _product?.variantOptions as any[]
+                delete _product?.variantOptions
+
+                const addedOrderProductItems = await tx.orderItem.create({ data: { ..._product, orderId: addedOrder?.id } })
+
+
+                _options = _options?.map((item: any) => {
+                    delete item?.mrp
+                    return { orderItemId: addedOrderProductItems?.id, ...item }
+                })
+
+                await tx.orderItemVariantOptions.createMany({ data: _options })
+            })
+
+            sendEvent({ type: SSE_EVENTS.ORDER_PLACED, payload: addedOrder })
+            return NextResponse.json({ payload: addedOrder, message: "Order placed success", success: false, statusCode: 201 }, { status: 201 })
+
+
+
+        })
+
     } catch (error: any) {
-        return NextResponse.json({ message: error.message, success: false }, { status: 400 })
+        return NextResponse.json({ message: error.message, success: false, }, { status: 400 })
     }
 }
 
@@ -27,53 +77,36 @@ async function validateOrderProducts(
         return NextResponse.json({ message: 'Invalid products data', success: false }, { status: 400 })
     }
 
-    const orderItems: OrderItem[] = [];
+    let validatedProducts: ICreateOrder[] = []
+    let productMrp = 0
 
-    await asyncForEach(cartProducts, async (cart: CartDTO) => {
-        const orderItemVariants: OrderItemVariant[] = [];
+    await asyncForEach(products, async (product: ICreateOrder) => {
 
-        await asyncForEach(cart.variantOptions, async (vOptId: string) => {
-            const vOpt = await this.productVariantOptionService.findOneBase(
-                {
-                    product: cart.product as any,
-                    id: vOptId as any,
-                },
-                {
-                    relations: ['product', 'variant', 'variantOption'],
+        const validatedVariantOption: any[] = []
+        if (product.variantOptions) {
+            await asyncForEach(product?.variantOptions, async (optionId: string) => {
+                const option = await prisma.productVariantOption.findUnique({ where: { id: optionId, productId: product.productId }, select: { id: true, mrp: true, product: true } })
+
+                if (!option) {
+                    return NextResponse.json({ message: 'Invalid product variant option', success: false }, { status: 400 })
                 }
-            );
 
-            if (!vOpt) {
-                throw new BadRequestException('Invalid product variant option');
-            }
+                if (option?.product) {
+                    if (option?.product?.stock < product.quantity) {
+                        return NextResponse.json({ message: 'Product is out of stock', success: false }, { status: 400 })
+                    }
+                    productMrp = option.product?.mrp
+                }
 
-            if (vOpt.stock < cart.quantity) {
-                throw new BadRequestException(`Product is out of stock`);
-            }
 
-            orderItemVariants.push({
-                variant: vOpt.variant,
-                variantOption: vOpt.variantOption,
-            } as OrderItemVariant);
-        });
+                validatedVariantOption.push({ productVariantOptionId: option.id, mrp: option?.mrp })
+            });
+        }
 
-        const productDetails = await this.productService.findByIdBase(
-            cart.product
-        );
-        orderItems.push({
-            quantity: cart.quantity,
-            product: productDetails,
-            mrp: productDetails.newPrice,
-            mrpVat: productDetails.mrpVat,
-            discount: productDetails.oldPrice - productDetails.newPrice,
-            couponDiscount: 0,
-            orderItemVariants,
-        } as OrderItem);
+        validatedProducts.push({ ...product, variantOptions: validatedVariantOption, mrp: productMrp })
+
+
     });
 
-    const order: Order = {
-        orderItems,
-    };
-
-    return order;
+    return validatedProducts
 }
