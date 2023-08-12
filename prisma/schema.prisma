@@ -34,27 +34,6 @@ model RestaurantTable {
   restaurantId   Int?
 }
 
-model Product {
-  id             String                 @id @default(uuid())
-  title          String
-  slug           String                 @unique
-  isActive       Boolean                @default(true)
-  description    String?
-  mrp            Float                  @default(0)
-  stock          Int                    @default(0)
-  remainingStock Int                    @default(0)
-  isStockout     Boolean                @default(false)
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
-  Category       Category?              @relation(fields: [categoryId], references: [id])
-  categoryId     String
-  variants       ProductVariantOption[]
-  restaurantInfo Restaurant?            @relation(fields: [restaurantId], references: [id])
-  restaurantId   Int
-  image          Image?                 @relation(fields: [imageId], references: [id])
-  imageId        String?
-}
-
 model Category {
   id             String      @id @default(uuid())
   title          String
@@ -68,30 +47,61 @@ model Category {
   restaurantId   Int?
 }
 
+model Product {
+  id              String                 @id @default(uuid())
+  title           String
+  slug            String                 @unique
+  isActive        Boolean                @default(true)
+  description     String?
+  mrp             Float                  @default(0)
+  stock           Int                    @default(0)
+  remainingStock  Int                    @default(0)
+  isStockout      Boolean                @default(false)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  Category        Category?              @relation(fields: [categoryId], references: [id])
+  categoryId      String
+  variants        ProductVariant[]
+  variantsOptions ProductVariantOption[]
+  restaurantInfo  Restaurant?            @relation(fields: [restaurantId], references: [id])
+  restaurantId    Int
+  image           Image?                 @relation(fields: [imageId], references: [id])
+  imageId         String?
+}
+
+model ProductVariant {
+  id                   String                 @id @default(uuid())
+  variant              Variant                @relation(fields: [variantId], references: [id])
+  variantId            String
+  productVariantOption ProductVariantOption[]
+  product              Product?               @relation(fields: [productId], references: [id])
+  productId            String?
+}
+
 model ProductVariantOption {
-  id              String        @id @default(uuid())
-  mrp             Float         @default(0)
-  stock           Int           @default(0)
-  remainingStock  Int           @default(0)
-  isStockout      Boolean       @default(false)
-  Product         Product?      @relation(fields: [productId], references: [id])
-  productId       String?
-  variant         Variant       @relation(fields: [variantId], references: [id])
-  variantOptions  VariantOption @relation(fields: [variantOptionId], references: [id])
-  variantOptionId String
-  variantId       String
+  id               String          @id @default(uuid())
+  mrp              Float           @default(0)
+  stock            Int             @default(0)
+  remainingStock   Int             @default(0)
+  isStockout       Boolean         @default(false)
+  productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id])
+  productVariantId String?
+  variantOption    VariantOption   @relation(fields: [variantOptionId], references: [id])
+  variantOptionId  String
+  Product          Product?        @relation(fields: [productId], references: [id])
+  productId        String?
 }
 
 model Variant {
-  id                   String                 @id @default(uuid())
-  title                String
-  slug                 String                 @unique
-  isActive             Boolean                @default(true)
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
-  variantOptions       VariantOption[]
-  OrderItemVariant     OrderItemVariant[]
-  productVariantOption ProductVariantOption[]
+  id               String             @id @default(uuid())
+  title            String
+  slug             String             @unique
+  isActive         Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  variantOptions   VariantOption[]
+  OrderItemVariant OrderItemVariant[]
+  productVariants  ProductVariant[]
 }
 
 model VariantOption {
@@ -102,7 +112,7 @@ model VariantOption {
   variantId            String?
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
-  productVariantOption ProductVariantOption[]
+  ProductVariantOption ProductVariantOption[]
 }
 
 model Order {

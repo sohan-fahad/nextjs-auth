@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
 import { prisma } from '@/lib/prisma';
-import { DBHelpers } from "@/helpers/db.helper";
 import { checkBearerToken } from "@/helpers/check-bearer-token.helper";
 import { Prisma } from "@prisma/client";
 
@@ -32,19 +31,23 @@ export async function GET(req: Request, { params }: any) {
             skip = (page - 1) * limit
         }
 
-        const query: Prisma.ProductFindManyArgs = {
+        const resultQuery: Prisma.ProductFindManyArgs = {
             where: { restaurantId },
-            take: limit > 0 ? limit : 10,
-            skip: skip,
             include: {
                 variants: {
-                    select: { variantId: true, variantOptionId: false, variant: true, variantOptions: true, mrp: true, remainingStock: true },
-                }
-            },
 
+                    select: {
+                        variantId: true,
+                        variant: true,
+                        productVariantOption: {
+                            select: { id: true, mrp: true, variantOption: true, variantOptionId: true, remainingStock: true, stock: true }
+                        }
+                    }
+                }
+            }
         }
 
-        const categories = await prisma.product.findMany(query)
+        const categories = await prisma.product.findMany(resultQuery)
         return NextResponse.json({
             message: "successfull",
             success: true,

@@ -7,6 +7,9 @@ import { generateSlug } from "@/utils/slug.utils";
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 
+
+// add product with variant and it's options
+
 export async function POST(req: Request) {
 
     try {
@@ -14,7 +17,9 @@ export async function POST(req: Request) {
             return NextResponse.json({ message: 'Unauthorized', success: false, statusCode: 401 }, { status: 401 });
         }
 
-        const { title, description, mrp, stock, categoryId, variantOptions, imageId } = await req.json();
+        const decodedToken = await decodedHeaderToken()
+
+        const { title, description, mrp, stock, categoryId, variants, imageId } = await req.json();
         if (!title) {
             return NextResponse.json({ message: 'invalid title', success: false, statusCode: 400 }, { status: 400 });
         }
@@ -31,20 +36,49 @@ export async function POST(req: Request) {
             return NextResponse.json({ message: 'invalid category', success: false, statusCode: 400 }, { status: 400 });
         }
 
+        if (variants?.lenght < 1) return NextResponse.json({ message: 'invalid variants!', success: false, statusCode: 400 }, { status: 400 });
+
         const existCategory = await prisma.category.findUnique({
             where: { id: categoryId }
         })
+
         if (!existCategory) {
             return NextResponse.json({ message: 'category not found!', success: false, statusCode: 400 }, { status: 400 });
         }
 
+        const existProduct = await prisma.product.findFirst({ where: { title, restaurantId: decodedToken?.restaurant?.id } })
 
-        if (variantOptions?.lenght < 1) return NextResponse.json({ message: 'invalid variants!', success: false, statusCode: 400 }, { status: 400 });
+        if (existProduct) {
+            return NextResponse.json({ message: 'product already exist with same name!', success: false, statusCode: 400 }, { status: 400 });
+        }
 
-        let productVariantOptions = await ProductHelperService.validateVariantOptions(variantOptions)
+
+
+
+        let validateProductVariants: any[] = [];
+        let validateProductVariantsOptions: any[] = []
+
+
+
+        await asyncForEach(variants, async (item: any) => {
+            const isValidVariant = await prisma.variant.findUnique({ where: { id: item?.variantId } })
+            if (!isValidVariant) {
+                return NextResponse.json({ message: 'varian is not found!', success: false, statusCode: 400 }, { status: 400 });
+            }
+            validateProductVariants.push({ variantId: isValidVariant?.id })
+
+            await asyncForEach(item?.variantOption, async (option: any) => {
+                const isValidOption = await prisma.variantOption.findUnique({ where: { id: option?.variantOptionId } })
+                if (!isValidOption) {
+                    return NextResponse.json({ message: 'varian option is not found!', success: false, statusCode: 400 }, { status: 400 });
+                }
+
+                validateProductVariantsOptions.push({ ...option, variantId: item?.variantId, remainingStock: option?.stock })
+            })
+        })
+
 
         const transactionResult = await prisma.$transaction(async (tx) => {
-            const decodedToken = await decodedHeaderToken()
             const addedProduct = await tx.product.create({
                 data: {
                     title,
@@ -59,25 +93,55 @@ export async function POST(req: Request) {
                 }
             })
 
-            productVariantOptions = productVariantOptions.map(item => ({
+            validateProductVariants = validateProductVariants.map(item => ({
                 ...item,
                 productId: addedProduct?.id
             }));
 
-            await tx.productVariantOption.createMany({
-                data: productVariantOptions
+            await tx.productVariant.createMany({
+                data: validateProductVariants,
             })
 
-            const addedProductPayload = await tx.product.findUnique({
-                where: { id: addedProduct?.id }, include: { variants: true }
+            const productVariants = await tx.productVariant.findMany({ where: { productId: addedProduct?.id }, select: { id: true, variantId: true } })
+
+            const productOptionData: any = []
+
+            await validateProductVariantsOptions.forEach(item => {
+                productVariants.forEach(productVariant => {
+                    if (item?.variantId === productVariant?.variantId) {
+                        delete item?.variantId
+                        productOptionData.push({ ...item, productVariantId: productVariant?.id, productId: addedProduct?.id })
+                    }
+                })
             })
+
+
+            await tx.productVariantOption.createMany({ data: productOptionData })
+
+            const resultQuery: Prisma.ProductFindUniqueArgs = {
+                where: { id: addedProduct?.id },
+                include: {
+                    variants: {
+
+                        select: {
+                            variantId: true,
+                            variant: true,
+                            productVariantOption: {
+                                select: { id: true, mrp: true, variantOption: true, variantOptionId: true, remainingStock: true, stock: true }
+                            }
+                        }
+                    }
+                }
+            }
+
+            const addedProductPayload = await tx.product.findUnique(resultQuery)
 
             return addedProductPayload;
         })
 
 
         return NextResponse.json({
-            message: "category created successfully",
+            message: "product created successfully",
             success: true,
             payload: transactionResult,
             statusCode: 201
@@ -107,20 +171,24 @@ export async function GET(req: Request) {
             skip = (page - 1) * limit
         }
 
-        const query: Prisma.ProductFindManyArgs = {
+        const resultQuery: Prisma.ProductFindManyArgs = {
             where: { restaurantId: decodedHeaderToken()?.restaurant?.id },
-            take: limit > 0 ? limit : 10,
-            skip: skip,
             include: {
                 variants: {
-                    select: { variantId: true, variantOptionId: false, variant: true, variantOptions: true, mrp: true, remainingStock: true },
-                }
-            },
 
+                    select: {
+                        variantId: true,
+                        variant: true,
+                        productVariantOption: {
+                            select: { id: true, mrp: true, variantOption: true, variantOptionId: true, remainingStock: true, stock: true }
+                        }
+                    }
+                }
+            }
         }
 
         const [products, count] = await prisma.$transaction([
-            prisma.product.findMany(query),
+            prisma.product.findMany(resultQuery),
             prisma.product.count()
         ])
         return NextResponse.json({
@@ -147,6 +215,7 @@ export async function DELETE(req: Request) {
 
         await prisma.$transaction(async (tx) => {
             await tx.productVariantOption.deleteMany({ where: { productId } })
+            await tx.productVariant.deleteMany({ where: { productId } })
             await tx.product.delete({ where: { id: productId } })
         })
         return NextResponse.json({

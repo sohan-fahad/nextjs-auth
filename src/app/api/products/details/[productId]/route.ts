@@ -26,9 +26,16 @@ export async function GET(req: Request, { params }: any) {
             where: { id: productId },
             include: {
                 variants: {
-                    select: { variantId: true, variantOptionId: false, variant: true, variantOptions: true, mrp: true, remainingStock: true },
+
+                    select: {
+                        variantId: true,
+                        variant: true,
+                        productVariantOption: {
+                            select: { id: true, mrp: true, variantOption: true, variantOptionId: true, remainingStock: true, stock: true }
+                        }
+                    }
                 }
-            },
+            }
 
         }
 

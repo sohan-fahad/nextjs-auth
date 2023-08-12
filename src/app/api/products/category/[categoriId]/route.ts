@@ -20,17 +20,23 @@ export async function GET(req: Request, { params }: any) {
         if (!existCategory) return NextResponse.json({ message: "no category found!", success: false }, { status: 400 })
 
 
-        const query: Prisma.ProductFindManyArgs = {
+        const resultQuery: Prisma.ProductFindManyArgs = {
             where: { categoryId: categoriId },
             include: {
                 variants: {
-                    select: { variantId: true, variantOptionId: false, variant: true, variantOptions: true, mrp: true, remainingStock: true },
-                }
-            },
 
+                    select: {
+                        variantId: true,
+                        variant: true,
+                        productVariantOption: {
+                            select: { id: true, mrp: true, variantOption: true, variantOptionId: true, remainingStock: true, stock: true }
+                        }
+                    }
+                }
+            }
         }
 
-        const products = await prisma.product.findMany(query)
+        const products = await prisma.product.findMany(resultQuery)
 
         if (!products.length) return NextResponse.json({ message: "No product found!", success: false }, { status: 400 })
 
